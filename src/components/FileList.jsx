@@ -16,26 +16,46 @@ const FileList = ({ files, onFileClick, onFileEdit, onFileDelete }) => {
     /* 设置一个ref来存储input的dom */
     const node = useRef(null)
     /* 点击关闭 */
-    const closeSearch = (e) => {
+    const closeSearch = (editItem) => {
         /* 设置编辑状态为默认 */
         setEditStatus(false)
         /* 设置默认值 */
         setValue('')
+        /* 如果是刚建的属性的话 */
+        if(editItem.isNew) {
+            onFileDelete(editItem.id)
+        }
     }
     /* 再搞一个effect */
     /* 这个事件已经抽成一个hook了 */
     useEffect(() => {
+        const editItem = files.find(file => file.id == editStatus)
         if(enterPressed && editStatus) {
-            onFileEdit(editStatus, value)
-            closeSearch()
+            if(!value.trim()) {
+                console.log(editItem)
+                return onFileDelete(editItem?.id)
+            }
+            onFileEdit(editItem.id, value)
+            closeSearch(editItem)
         }
         if(escPressed && editStatus) {
-            closeSearch()
+            closeSearch(editItem)
         }
     })
     useEffect(() => {
+        const newFiles = files.filter(file => file.isNew)
+        /* filter是返回一个数组 */
+        if(newFiles.length) {
+            console.log(newFiles)
+            /* 我刚进来的时候,我就是编辑状态 */
+            setEditStatus(newFiles[0].id)
+            /* 并且把我的默认值设置进去 */
+            setValue(newFiles[0].title)
+        }
+    },[files])
+    useEffect(() => {
         if(editStatus) {
-            node.current.focus()
+            node.current?.focus()
         }
     },[editStatus])
     return (
@@ -45,7 +65,7 @@ const FileList = ({ files, onFileClick, onFileEdit, onFileDelete }) => {
                     key={file.id}
                     className="list-group-item bg-light d-flex align-items-center file-item row">
                         {
-                            (file.id != editStatus) && 
+                            ((file.id != editStatus) && !file.isNew) && 
                             <>
                                 <span className="col-1">
                                     <FontAwesomeIcon
@@ -78,11 +98,12 @@ const FileList = ({ files, onFileClick, onFileEdit, onFileDelete }) => {
                             </>
                         }
                         {
-                            (file.id == editStatus) &&
+                            ((file.id == editStatus) || file.isNew) &&
                             <>
                             <div className="row">
                                 <div className="col-11 input-search">
                                     <input 
+                                    placeholder="请输入文件名称"
                                     className="form-control"
                                     value={value}
                                     ref={node}
@@ -92,7 +113,7 @@ const FileList = ({ files, onFileClick, onFileEdit, onFileDelete }) => {
                                 <button
                                 type="button"
                                 className="icon-button edit-button col-1"
-                                onClick={closeSearch}
+                                onClick={() => {closeSearch(file)}}
                                 >
                                 <FontAwesomeIcon 
                                 title='关闭'

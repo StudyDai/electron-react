@@ -8,6 +8,7 @@ import TabList from './components/TabList';
 import SimpleMDE from 'react-simplemde-editor'
 import 'easymde/dist/easymde.min.css'
 import 'default-passive-events'
+import { v4 as uuidv4 } from 'uuid'
 import { faPlus,faFileImport } from '@fortawesome/free-solid-svg-icons';
 import { useState } from 'react';
 function App() {
@@ -80,9 +81,12 @@ function App() {
   // const updateFileName = (id, value) => defaultFiles.find(item => item.id == id).title = value
   /* 另一种 */
   const updateFileName = (id,value) => {
-    const newFiles = defaultFiles.map(file => {
+    const newFiles = files.map(file => {
       if(file.id == id) {
          file.title = value
+      }
+      if(file.isNew) {
+        file.isNew = false
       }
       return file
     })
@@ -101,6 +105,17 @@ function App() {
   const getDefaultFiles = () => {
       setSearchFiles([...files])
   }
+  /* 新建文件 */
+  const createNewFile = () => {
+      const uuid = uuidv4()
+      setFiles([...files,{
+        id: uuid,
+        title: '',
+        body: '### please enter markdown',
+        createdAt: new Date().getTime(),
+        isNew: true
+      }])
+  }
   return (
     <div className="App container-fluid">
       <div className="row">
@@ -117,7 +132,9 @@ function App() {
               />
             <div className='bottom-btn row mx-0'>
               <div className='col px-0'>
-                <BottomBtn colorClass="btn-primary rounded-0 cover" icon={faPlus}/>
+                <BottomBtn 
+                onClick={createNewFile}
+                colorClass="btn-primary rounded-0 cover" icon={faPlus}/>
               </div>
               <div className='col px-0'>
                 <BottomBtn colorClass="btn-success rounded-0 cover" icon={faFileImport} text='导入'/>

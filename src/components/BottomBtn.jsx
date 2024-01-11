@@ -5,6 +5,7 @@ import PropTypes from 'prop-types'
 const BottomBtn = ({ text, colorClass, icon, onClick }) => {
     return (
         <button
+        onClick={onClick}
         type="button"
         className={`btn btn-block no-border ${colorClass}`}
         >
