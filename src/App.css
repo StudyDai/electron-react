@@ -1,0 +1,15 @@
+.icon-button {
+  background: none;
+  border: none;
+  color: inherit;
+}
+.input-search {
+  height: 26px;
+  padding-right: 0 !important;
+}
+.input-search input {
+  height: 100%;
+}
+.c-link {
+  cursor: pointer;
+}
