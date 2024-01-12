@@ -14,12 +14,12 @@ const useKeyPress = (targetKeyCode) => {
     }
     /* 使用useEffect,刚进来就添加这俩监听 */
     useEffect(() => {
-        document.addEventListener('keydown', keyDownHandler,{ passive: true })
-        document.addEventListener('keyup', keyUpHandler,{ passive: true })
+        document.addEventListener('keydown', keyDownHandler)
+        document.addEventListener('keyup', keyUpHandler)
         /* 销毁的时候会触发 */
         return () => {
-            document.removeEventListener('keydown', keyDownHandler,{ passive: false })
-            document.removeEventListener('keyup', keyUpHandler,{ passive: false })
+            document.removeEventListener('keydown', keyDownHandler)
+            document.removeEventListener('keyup', keyUpHandler)
         }
     },[]) /* 它并没有什么依赖,就是刚加载进来就触发一次即可 */
     /* 返回当前键盘状态 */

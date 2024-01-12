@@ -10,10 +10,32 @@ import 'easymde/dist/easymde.min.css'
 import 'default-passive-events'
 import { v4 as uuidv4 } from 'uuid'
 import { faPlus,faFileImport } from '@fortawesome/free-solid-svg-icons';
+/* 引入我们的文件操作工具 */
+import fileHelper from './utils/fileHelper'
 import { useState } from 'react';
+/* 引入node的api */
+const { join } = window.require('path')
+const remote = window.require('@electron/remote')
+const Store = window.require('electron-store')
+const store = new Store()
+/* 新建/重命名/删除调用 */
+const saveFilesToStore = (files) => {
+  
+    const fileStoreObj = files.reduce((pre, current) => {
+      const { id, path, title, createdAt } = current
+        pre.push({
+          id,
+          path,
+          title,
+          createdAt
+        })
+        return pre
+    },[])
+    store.set('files', fileStoreArr)
+}
 function App() {
   /* 所有的文件 */
-  const [files, setFiles] = useState(defaultFiles)
+  const [files, setFiles] = useState(store.get('files') || {})
   /* 当前被激活的id */
   const [activeFileID, setActiveFileID] = useState('')
   /* 当前点开过的文件id */
@@ -22,6 +44,8 @@ function App() {
   const [unsaveFileIDs, setUnSaveFileIDs] = useState([])
   /* 用来存储和展示搜索结果的数组 */
   const [searchFiles, setSearchFiles ] = useState([])
+  /* 保存当前的路径 */
+  const saveLocation = remote.app.getAppPath('document')
   /* 定义一个变量,如果我search有长度,就用我自己的 */
   const fileListarr = searchFiles.length ? searchFiles : files
   /* 这里要传递给显示的应该是完整的数据,而不能是只有id的数据 */
@@ -72,7 +96,16 @@ function App() {
   }
   /* 删除左侧列表项 */
   const deleteFile = (id) => {
-    const newFiles = files.filter(file => file.id !== id)
+    const newFiles = files.filter(file => {
+      if(file.id == id) {
+        fileHelper.deleteFile(join(saveLocation,`${file.title}.md`)).then(res => {
+          console.log('删除成功')
+        })
+        return false
+      }
+      return file.id !== id
+    })
+    // saveFilesToStore(newFiles)
     setFiles(newFiles)
     /* 如果我当前文件已经打开,那么就手动调用close关掉 */
     tabClose(id)
@@ -80,16 +113,26 @@ function App() {
   /* 更新文件名称,这是一种写法 */
   // const updateFileName = (id, value) => defaultFiles.find(item => item.id == id).title = value
   /* 另一种 */
-  const updateFileName = (id,value) => {
+  const updateFileName = (id,value,isNew = false) => {
+    const newPath = join(saveLocation, `${value}.md`)
     const newFiles = files.map(file => {
       if(file.id == id) {
-         file.title = value
-      }
-      if(file.isNew) {
-        file.isNew = false
+        if(file.isNew) {
+          file.isNew = false
+          fileHelper.writeFile(newPath,file?.body).then(res => {
+            console.log('写入成功')
+          })
+        }else{
+          fileHelper.renameFile(join(saveLocation,`${file.title}.md`),newPath).then(res => {
+            console.log('修改成功')
+          })
+        }
+        file.path = newPath
+        file.title = value
       }
       return file
     })
+    saveFilesToStore(newFiles)
     setFiles(newFiles)
   }
   /* 搜索输入 */
@@ -111,6 +154,7 @@ function App() {
       setFiles([...files,{
         id: uuid,
         title: '',
+        path: saveLocation,
         body: '### please enter markdown',
         createdAt: new Date().getTime(),
         isNew: true

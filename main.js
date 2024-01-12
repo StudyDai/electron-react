@@ -1,5 +1,6 @@
 const { app, BrowserWindow } = require('electron')
-
+const remote = require('@electron/remote/main')
+remote.initialize()
 let mainWindow
 
 app.on("ready", () => {
@@ -15,4 +16,5 @@ app.on("ready", () => {
     mainWindow.webContents.openDevTools()
     const urlLocation = "http://localhost:3000"
     mainWindow.loadURL(urlLocation)
+    remote.enable(mainWindow.webContents)
 })

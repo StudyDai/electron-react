@@ -32,10 +32,9 @@ const FileList = ({ files, onFileClick, onFileEdit, onFileDelete }) => {
         const editItem = files.find(file => file.id == editStatus)
         if(enterPressed && editStatus) {
             if(!value.trim()) {
-                console.log(editItem)
                 return onFileDelete(editItem?.id)
             }
-            onFileEdit(editItem.id, value)
+            onFileEdit(editItem.id, value, editItem.isNew)
             closeSearch(editItem)
         }
         if(escPressed && editStatus) {
