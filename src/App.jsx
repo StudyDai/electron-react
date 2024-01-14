@@ -12,30 +12,30 @@ import { v4 as uuidv4 } from 'uuid'
 import { faPlus,faFileImport } from '@fortawesome/free-solid-svg-icons';
 /* 引入我们的文件操作工具 */
 import fileHelper from './utils/fileHelper'
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 /* 引入node的api */
-const { join } = window.require('path')
+const { join, basename,extname,dirname } = window.require('path')
 const remote = window.require('@electron/remote')
 const Store = window.require('electron-store')
-const store = new Store()
+const store = new Store({'name': 'File Data'})
+const {globalShortcut} = remote
 /* 新建/重命名/删除调用 */
 const saveFilesToStore = (files) => {
   
     const fileStoreObj = files.reduce((pre, current) => {
       const { id, path, title, createdAt } = current
-        pre.push({
+        return [...pre, {
           id,
           path,
           title,
           createdAt
-        })
-        return pre
+        }]
     },[])
-    store.set('files', fileStoreArr)
+    store.set('files', fileStoreObj)
 }
 function App() {
   /* 所有的文件 */
-  const [files, setFiles] = useState(store.get('files') || {})
+  const [files, setFiles] = useState(store.get('files') || [])
   /* 当前被激活的id */
   const [activeFileID, setActiveFileID] = useState('')
   /* 当前点开过的文件id */
@@ -46,6 +46,8 @@ function App() {
   const [searchFiles, setSearchFiles ] = useState([])
   /* 保存当前的路径 */
   const saveLocation = remote.app.getAppPath('document')
+  /* 保存当前markdow的内容 */
+  const [bodyContent, setBodyContent] = useState('')
   /* 定义一个变量,如果我search有长度,就用我自己的 */
   const fileListarr = searchFiles.length ? searchFiles : files
   /* 这里要传递给显示的应该是完整的数据,而不能是只有id的数据 */
@@ -53,11 +55,41 @@ function App() {
     return files.find(file => file.id == fileID)
   })
   /* 拿到当前处于active的那个文件 */
-  const activedFile = files.find(file => file.id == activeFileID)
+  const activedFile = files.find(file => {
+    if(file.id == activeFileID) {
+      return true
+    }
+  })
+  useEffect(() => {
+    setBodyContent(activedFile.body)
+  },[activedFile])
+  /* 添加快捷键监听 */
+  globalShortcut.register('control+s',() => {
+  if(activeFileID && unsaveFileIDs.includes(activeFileID)) {
+    /* 找到当前的高亮 */
+      let editFile = files.find(file => file.id == activeFileID)
+      /* 修改内容 */
+      editFile.body = bodyContent
+      /* 更新 */
+      setFiles({...files})
+      /* 将未保存状态修改掉 */
+      let currentUnSaveFileIDs = unsaveFileIDs.filter(fileID => fileID !== activeFileID)
+      setUnSaveFileIDs(currentUnSaveFileIDs)
+  }
+})
   /* 左侧列表项被点击触发的函数 */
   const fileClick = (id) => {
     /* 当前激活的id */
     setActiveFileID(id)
+    /* 判断一下,当前我点击的文件,是否已经加载过了 */
+    let currentFile = files.find(file => file.id == id)
+    if(!currentFile.isLoaded) {
+      fileHelper.readFile(currentFile.path).then((value) => {
+        currentFile.body = value
+        currentFile.isLoaded = true
+        setFiles([...files])
+      })
+    }
     /* 判断一下,如果我当前点击的是我里面已经添加的,那么就不进行添加 */
     if(!openFileIDs.includes(id)) {
       /* 添加到点开过的id */
@@ -79,33 +111,31 @@ function App() {
     }
   }
   /* 修改里面md数据,会调用我这个函数 */
-  const fileChange = (value, id) => {
-    /* 对数据进行包装 */
-    const newFiles = files.map(file => {
-      /* 找到那个文件,对里面的body进行重新赋值 */
-      if(file.id == id) {
-        file.body = value
-      }
-      return file
-    })
-    // setFiles(newFiles)
+  const changeFileHandler = (value, id) => {
+    setBodyContent(value)
+    console.log(value)
     // /* 将我们写的那个玩意保存到unsaveid数组里面 */
-    if(!unsaveFileIDs.includes(id)) {
-      setUnSaveFileIDs([...unsaveFileIDs, id])
-    }
+    // if(!unsaveFileIDs.includes(id)) {
+    //   setUnSaveFileIDs([...unsaveFileIDs, id])
+    // }
   }
+  const changeFile = useCallback(changeFileHandler,[])
   /* 删除左侧列表项 */
   const deleteFile = (id) => {
     const newFiles = files.filter(file => {
-      if(file.id == id) {
-        fileHelper.deleteFile(join(saveLocation,`${file.title}.md`)).then(res => {
-          console.log('删除成功')
-        })
-        return false
-      }
-      return file.id !== id
+       return file.id !== id
     })
-    // saveFilesToStore(newFiles)
+    const deleteFile = files.find(file => file.id == id)
+    if(deleteFile.hasOwnProperty('isNew') && !deleteFile.isNew) {
+      fileHelper.deleteFile(join(saveLocation,`${deleteFile.title}.md`)).then(res => {
+            console.log('删除成功')
+      })
+    }else{
+      fileHelper.deleteFile(join(dirname(deleteFile.path),`${deleteFile.title}.md`)).then(res => {
+            console.log('删除成功')
+      })
+    }
+    saveFilesToStore(newFiles)
     setFiles(newFiles)
     /* 如果我当前文件已经打开,那么就手动调用close关掉 */
     tabClose(id)
@@ -114,7 +144,14 @@ function App() {
   // const updateFileName = (id, value) => defaultFiles.find(item => item.id == id).title = value
   /* 另一种 */
   const updateFileName = (id,value,isNew = false) => {
-    const newPath = join(saveLocation, `${value}.md`)
+    let newPath
+    if(isNew) {
+      newPath = join(saveLocation, `${value}.md`)
+    }else{
+      let currentPath = files.find(file => file.id == id)?.path
+      /* path的dirname可以拿到除了文件名和后缀外的前面部分 user/appdata/..这样的格式 */
+      newPath = join(dirname(currentPath), `${value}.md`)
+    }
     const newFiles = files.map(file => {
       if(file.id == id) {
         if(file.isNew) {
@@ -123,7 +160,7 @@ function App() {
             console.log('写入成功')
           })
         }else{
-          fileHelper.renameFile(join(saveLocation,`${file.title}.md`),newPath).then(res => {
+          fileHelper.renameFile(file.path,newPath).then(res => {
             console.log('修改成功')
           })
         }
@@ -160,6 +197,47 @@ function App() {
         isNew: true
       }])
   }
+  // console.log(remote)
+  /* 导入文件 */
+  const inportFiles = () => {
+      remote.dialog.showOpenDialog({
+        title: '选择导入的markdown文件',
+        filters: [
+          {name: 'Markdown files', extensions:['md']}
+        ],
+        properties: ['openFile', 'multiSelections']
+      }).then(paths => {
+        let pathEl = paths.filePaths
+        if(pathEl) {
+          /* 拿到文件名称,id,title等 */
+          console.log(files,pathEl)
+          const filteredPath = pathEl.filter(path => {
+            const alreadyAdded = files.find(file => file.path == path)
+            return !alreadyAdded
+          })
+          /* 封装一下对象 */
+          const importFileArr = filteredPath.map(path => {
+            return {
+              id: uuidv4(),
+              title: basename(path, extname(path)),
+              path: path
+            }
+          })
+          /* 导入我们的文件 */
+          let newFilesArr = [...files, ...importFileArr]
+          setFiles(newFilesArr)
+          saveFilesToStore(newFilesArr)
+          let importLen = importFileArr.length
+          if(importLen > 0) {
+            remote.dialog.showMessageBox({
+              info: 'info',
+              title: '导入成功',
+              message: `成功导入了${importLen}个文件`
+            })
+          }
+        }
+      })
+  }
   return (
     <div className="App container-fluid">
       <div className="row">
@@ -181,7 +259,9 @@ function App() {
                 colorClass="btn-primary rounded-0 cover" icon={faPlus}/>
               </div>
               <div className='col px-0'>
-                <BottomBtn colorClass="btn-success rounded-0 cover" icon={faFileImport} text='导入'/>
+                <BottomBtn 
+                onClick={inportFiles}
+                colorClass="btn-success rounded-0 cover" icon={faFileImport} text='导入'/>
               </div>
             </div>
           </div>
@@ -203,8 +283,8 @@ function App() {
                 files={openedFiles}/>
                 <SimpleMDE
                   key={activedFile && activedFile.id}
-                  value={activedFile?.body}
-                  onChange={(value) => fileChange(value,activedFile?.id)}
+                  value={bodyContent}
+                  onChange={changeFile}
                   options={{
                     "minHeight": '515px'
                   }}

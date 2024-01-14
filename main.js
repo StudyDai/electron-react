@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow, globalShortcut } = require('electron')
 const remote = require('@electron/remote/main')
 remote.initialize()
 let mainWindow
