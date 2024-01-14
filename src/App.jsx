@@ -48,46 +48,53 @@ function App() {
   const saveLocation = remote.app.getAppPath('document')
   /* 保存当前markdow的内容 */
   const [bodyContent, setBodyContent] = useState('')
+  /* 定义修改的时候保存的变量 */
+  let MDEValue = ''
   /* 定义一个变量,如果我search有长度,就用我自己的 */
   const fileListarr = searchFiles.length ? searchFiles : files
   /* 这里要传递给显示的应该是完整的数据,而不能是只有id的数据 */
   const openedFiles = openFileIDs.map(fileID => {
     return files.find(file => file.id == fileID)
   })
+  const [activedFile, setActivedFile] = useState({})
   /* 拿到当前处于active的那个文件 */
-  const activedFile = files.find(file => {
-    if(file.id == activeFileID) {
-      return true
-    }
-  })
   useEffect(() => {
-    setBodyContent(activedFile.body)
-  },[activedFile])
+    let currentActivedFile = files.find(file => {
+      if(file.id == activeFileID) {
+        return true
+      }
+    })
+    if(currentActivedFile) {
+      setActivedFile(currentActivedFile)
+    }
+  },[activeFileID])
   /* 添加快捷键监听 */
-  globalShortcut.register('control+s',() => {
-  if(activeFileID && unsaveFileIDs.includes(activeFileID)) {
-    /* 找到当前的高亮 */
-      let editFile = files.find(file => file.id == activeFileID)
-      /* 修改内容 */
-      editFile.body = bodyContent
-      /* 更新 */
-      setFiles({...files})
-      /* 将未保存状态修改掉 */
-      let currentUnSaveFileIDs = unsaveFileIDs.filter(fileID => fileID !== activeFileID)
-      setUnSaveFileIDs(currentUnSaveFileIDs)
-  }
-})
+  // globalShortcut.register('control+s',() => {
+  // if(activeFileID && unsaveFileIDs.includes(activeFileID)) {
+  //   /* 找到当前的高亮 */
+  //     let editFile = files.find(file => file.id == activeFileID)
+  //     /* 修改内容 */
+  //     editFile.body = bodyContent
+  //     /* 更新 */
+  //     setFiles({...files})
+  //     /* 将未保存状态修改掉 */
+  //     let currentUnSaveFileIDs = unsaveFileIDs.filter(fileID => fileID !== activeFileID)
+  //     setUnSaveFileIDs(currentUnSaveFileIDs)
+  //   }
+  // })
   /* 左侧列表项被点击触发的函数 */
   const fileClick = (id) => {
     /* 当前激活的id */
     setActiveFileID(id)
     /* 判断一下,当前我点击的文件,是否已经加载过了 */
     let currentFile = files.find(file => file.id == id)
+    console.log(currentFile)
     if(!currentFile.isLoaded) {
       fileHelper.readFile(currentFile.path).then((value) => {
-        currentFile.body = value
-        currentFile.isLoaded = true
-        setFiles([...files])
+        // currentFile.body = value
+        // currentFile.isLoaded = true
+        // setFiles([...files])
+        // setBodyContent(currentFile?.body)
       })
     }
     /* 判断一下,如果我当前点击的是我里面已经添加的,那么就不进行添加 */
@@ -110,14 +117,13 @@ function App() {
       setActiveFileID(tabWidthout[argmentsLength - 1])
     }
   }
-  /* 修改里面md数据,会调用我这个函数 */
   const changeFileHandler = (value, id) => {
-    setBodyContent(value)
+    if(!unsaveFileIDs.includes(id)) {
+      setUnSaveFileIDs([...unsaveFileIDs, id])
+    }
+    MDEValue = value
     console.log(value)
     // /* 将我们写的那个玩意保存到unsaveid数组里面 */
-    // if(!unsaveFileIDs.includes(id)) {
-    //   setUnSaveFileIDs([...unsaveFileIDs, id])
-    // }
   }
   const changeFile = useCallback(changeFileHandler,[])
   /* 删除左侧列表项 */
@@ -208,6 +214,7 @@ function App() {
         properties: ['openFile', 'multiSelections']
       }).then(paths => {
         let pathEl = paths.filePaths
+        console.log(pathEl)
         if(pathEl) {
           /* 拿到文件名称,id,title等 */
           console.log(files,pathEl)
@@ -282,8 +289,7 @@ function App() {
                 onTabClick={tabClick}
                 files={openedFiles}/>
                 <SimpleMDE
-                  key={activedFile && activedFile.id}
-                  value={bodyContent}
+                  value={activedFile}
                   onChange={changeFile}
                   options={{
                     "minHeight": '515px'
